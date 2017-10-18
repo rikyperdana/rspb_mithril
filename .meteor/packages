@@ -21,3 +21,4 @@ materialize:materialize@=0.97.6
 spectrum:mithril-meteor
 stevezhu:lodash
 planettraining:material-design-icons-font
+reactive-dict

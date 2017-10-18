@@ -1,9 +1,12 @@
 if Meteor.isClient
 
-	empty = (arr) -> _.assign _id: '', _.fromPairs _.zip arr, _.fill Array(_.size arr), ''
+	fill = (arr, val) -> _.assign _id: '', _.fromPairs _.zip arr, _.fill Array(_.size arr), val
+
+	store = new ReactiveDict()
+	store.set 'formVal', fill schema.pasien, ''
 
 	comp.layout =
-		view: -> m 'main', [comp.menu, comp.modul]
+		view: -> m 'main', [comp.menu, comp.gabung]
 
 	comp.menu =
 		view: ->
@@ -21,39 +24,47 @@ if Meteor.isClient
 				]
 			]
 
-	comp.modul =
-		sub: Meteor.subscribe 'coll', 'pasien', {}
-		formValue: new ReactiveVar empty schema.pasien
-		datas: reactive -> this.res = coll.pasien.find().fetch()
-		formEvent: ->
-			onsubmit: (event) ->
-				event.preventDefault()
-				data = {}
-				for i in schema.pasien
-					data[i] = event.target.children[i].value
-				_id = comp.modul.formValue.curValue._id
-				data._id = if _id then _id
-				Meteor.call 'upsert', 'pasien', data
-				comp.modul.formValue.set empty schema.pasien
-		tableEvent: (doc) ->
-			onclick: ->
-				comp.modul.formValue.set doc
-		view: -> m '.container', style: 'padding-left': '240px', [
-			m 'form', this.formEvent(), [
-				m 'h5', 'Pendaftaran Pasien'
-				_.map schema.pasien, (i) -> m 'input',
-					name: i
-					placeholder: _.capitalize i
-					value: comp.modul.formValue.curValue[i]
+	form = (name) ->
+		controller: reactive ->
+			this.formEvent =
+				onsubmit: (event) ->
+					doc = {}
+					event.preventDefault()
+					_.map schema[name], (i) ->
+						doc[i] = event.target.children[i].value
+					id = store.get('formVal')._id
+					if id then doc._id = id
+					Meteor.call 'upsert', name, doc
+					store.set 'formVal', fill schema[name], ''
+				onkeypress: (event) -> console.log event, this
+		view: (ctrl) ->
+			m 'form', ctrl.formEvent, [
+				_.map schema[name], (i) -> m 'input', name: i, value: store.get('formVal')[i]
 				m 'input.btn', type: 'submit'
 			]
+
+	table = (name) ->
+		sub: Meteor.subscribe 'coll', name, {}
+		controller: reactive ->
+			this.datas = coll[name].find().fetch()
+			this.rowEvent = (doc) ->
+				onclick: ->
+					store.set 'formVal', doc
+				ondblclick: ->
+					Meteor.call 'remove', name, doc
+		view: (ctrl) ->
 			m 'table', [
-				m 'thead', m 'tr', _.map schema.pasien, (i) ->
-					m 'th', _.capitalize i
-				m 'tbody', _.map comp.modul.datas().res, (i) ->
-					m 'tr', comp.modul.tableEvent(i), _.map schema.pasien, (j) ->
+				m 'thead', m 'tr', _.map schema[name], (i) ->
+					m 'th', _.startCase i
+				m 'tbody', _.map ctrl.datas, (i) ->
+					m 'tr', ctrl.rowEvent(i), _.map schema[name], (j) ->
 						m 'td', i[j]
 			]
+	
+	comp.gabung =
+		view: -> m '.container', [
+			form 'pasien'
+			table 'pasien'
 		]
 
 	m.mount document.body, comp.layout
